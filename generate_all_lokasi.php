@@ -420,7 +420,7 @@ if(\$base_url == '/') \$base_url = '';
     <section id="galeri" class="bg-light">
         <div class="container">
             <h2 class="text-center section-title"><i class="fas fa-images"></i> Galeri Produk Bunga</h2>
-        <div class="row g-4">
+       <div class="row g-4">
                 <?php
                 \$products = [
                     ['name' => 'Karangan Bunga Papan Duka Cita', 'desc' => 'Papan bunga duka cita dengan desain penuh simpati untuk mengiringi kepergian', 'image' => 'duka-cita.webp'],
@@ -430,20 +430,23 @@ if(\$base_url == '/') \$base_url = '';
                     ['name' => 'Bunga Standing Flowers', 'desc' => 'Standing flower elegan untuk berbagai acara formal dan grand opening', 'image' => 'standing-flowers.webp'],
                     ['name' => 'Rangkaian Bunga Meja', 'desc' => 'Bunga meja cantik untuk dekorasi acara dan ruangan kantor', 'image' => 'bunga-meja.webp'],
                     ['name' => 'Buket Bunga', 'desc' => 'Hand bouquet fresh flowers untuk wisuda, anniversary, dan hadiah spesial', 'image' => 'buket-bunga.webp'],
+                    ['name' => 'Bunga Tangan Wedding', 'desc' => 'Bunga tangan pengantin dengan desain mewah dan elegan', 'image' => 'bunga-tangan-wedding.webp'],
                     ['name' => 'Bunga Standing Flowers Premium', 'desc' => 'Standing flower premium dengan rangkaian bunga pilihan terbaik', 'image' => 'standing-premium.webp'],
                     ['name' => 'Bunga Krans Duka Cita / Wedding', 'desc' => 'Karangan bunga krans untuk duka cita atau dekorasi pernikahan', 'image' => 'bunga-krans.webp'],
                     ['name' => 'Bunga Salip', 'desc' => 'Bunga salip dengan pita ucapan untuk berbagai acara', 'image' => 'bunga-salip.webp'],
                     ['name' => 'Bunga Saku (Corsage)', 'desc' => 'Corsage cantik untuk pengantin, wisuda, dan acara formal', 'image' => 'corsage.webp'],
                     ['name' => 'Parcel Natal & Tahun Baru', 'desc' => 'Parcel hampers spesial untuk perayaan Natal dan Tahun Baru', 'image' => 'parcel-natal.webp'],
                     ['name' => 'Parcel Lebaran', 'desc' => 'Parcel lebaran dengan paket hampers premium', 'image' => 'parcel-lebaran.webp'],
-                    ['name' => 'Parcel Buah', 'desc' => 'Parcel buah segar pilihan berkualitas tinggi', 'image' => 'parcel-buah.webp']
+                    ['name' => 'Parcel Buah', 'desc' => 'Parcel buah segar pilihan berkualitas tinggi', 'image' => 'parcel-buah.webp'],
+                    ['name' => 'Karangan Bunga Papan Printing', 'desc' => 'Papan bunga dengan printing digital full color custom design', 'image' => 'papan-printing.webp'],
+                    ['name' => 'Papan Bunga Akrilik', 'desc' => 'Papan bunga modern dengan bahan akrilik premium dan elegan', 'image' => 'papan-akrilik.webp']
                 ];
                 
                 foreach(\$products as \$product):
                 ?>
                 <div class="col-md-4 col-lg-3">
                     <div class="card product-card">
-                        <img src="<?= \$base_url ?>/../assets/images/<?= \$product['image'] ?>" class="card-img-top" alt="<?= \$product['name'] ?>" style="height: 250px; object-fit: cover;">
+                        <img src="/assets/images/<?= \$product['image'] ?>" class="card-img-top" alt="<?= \$product['name'] ?>" style="height: 250px; object-fit: cover;" onerror="this.onerror=null; this.src='/assets/images/placeholder.webp';">
                         <div class="card-body">
                             <h5 class="card-title" style="font-size: 1rem; min-height: 48px;"><?= \$product['name'] ?></h5>
                             <p class="card-text text-muted" style="font-size: 0.875rem; min-height: 60px;"><?= \$product['desc'] ?></p>
