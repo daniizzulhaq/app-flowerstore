@@ -5,7 +5,6 @@ if(!isset($_SESSION['admin_logged_in'])) {
     exit;
 }
 
-// Error handling untuk debugging (hapus setelah fix)
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -14,6 +13,25 @@ include '../config.php';
 
 $success = $error = '';
 
+// OPTIONAL: Fix table structure (jalankan sekali saja)
+if(isset($_GET['fix_table']) && $_GET['fix_table'] == 'yes') {
+    try {
+        // Check current structure
+        $check = $conn->query("SHOW COLUMNS FROM locations LIKE 'id'");
+        $column = $check->fetch_assoc();
+        
+        if($column && strpos($column['Extra'], 'auto_increment') === false) {
+            // Fix the ID column to be AUTO_INCREMENT
+            $conn->query("ALTER TABLE locations MODIFY COLUMN id INT(11) NOT NULL AUTO_INCREMENT");
+            $success = "Tabel berhasil diperbaiki! Silakan tambah lokasi sekarang.";
+        } else {
+            $success = "Tabel sudah benar, tidak perlu diperbaiki.";
+        }
+    } catch(Exception $e) {
+        $error = "Gagal memperbaiki tabel: " . $e->getMessage();
+    }
+}
+
 // Handle Add
 if(isset($_POST['add_location'])) {
     try {
@@ -21,13 +39,17 @@ if(isset($_POST['add_location'])) {
         $address = trim($_POST['address']);
         $subdomain = trim($_POST['subdomain']);
         
-        $stmt = $conn->prepare("INSERT INTO locations (name, address, subdomain) VALUES (?, ?, ?)");
+        // Jika masih error AUTO_INCREMENT, generate ID manual
+        $maxId = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM locations")->fetch_assoc();
+        $nextId = $maxId['next_id'];
+        
+        $stmt = $conn->prepare("INSERT INTO locations (id, name, address, subdomain) VALUES (?, ?, ?, ?)");
         
         if($stmt === false) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
         
-        $stmt->bind_param("sss", $name, $address, $subdomain);
+        $stmt->bind_param("isss", $nextId, $name, $address, $subdomain);
         
         if($stmt->execute()) {
             $success = "Lokasi berhasil ditambahkan!";
@@ -41,7 +63,7 @@ if(isset($_POST['add_location'])) {
     }
 }
 
-// Handle Delete - Gunakan prepared statement
+// Handle Delete
 if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     try {
         $id = (int)$_GET['delete'];
@@ -66,7 +88,6 @@ if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
         
         $stmt->close();
         
-        // Redirect untuk menghindari resubmit
         header("Location: locations.php?msg=deleted");
         exit;
         
@@ -103,12 +124,10 @@ if(isset($_POST['edit_location'])) {
     }
 }
 
-// Success message dari redirect
 if(isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
     $success = "Lokasi berhasil dihapus!";
 }
 
-// Get all locations
 try {
     $locations = $conn->query("SELECT * FROM locations ORDER BY name ASC");
     if($locations === false) {
@@ -172,6 +191,15 @@ try {
     <!-- Main Content -->
     <div class="content">
         <h2 class="mb-4">Kelola Lokasi</h2>
+
+        <!-- Alert untuk fix table -->
+        <div class="alert alert-warning alert-dismissible fade show">
+            <i class="fas fa-exclamation-triangle"></i> <strong>Jika muncul error "Field 'id' doesn't have a default value":</strong><br>
+            <a href="?fix_table=yes" class="btn btn-sm btn-warning mt-2">
+                <i class="fas fa-wrench"></i> Klik di sini untuk perbaiki struktur database
+            </a>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
 
         <?php if($success): ?>
             <div class="alert alert-success alert-dismissible fade show">
