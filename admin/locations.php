@@ -4,34 +4,120 @@ if(!isset($_SESSION['admin_logged_in'])) {
     header('Location: login.php');
     exit;
 }
+
+// Error handling untuk debugging (hapus setelah fix)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 include '../config.php';
 
 $success = $error = '';
 
 // Handle Add
 if(isset($_POST['add_location'])) {
-    $name = $_POST['name'];
-    $address = $_POST['address'];
-    $subdomain = $_POST['subdomain'];
-    
-    $stmt = $conn->prepare("INSERT INTO locations (name, address, subdomain) VALUES (?, ?, ?)");
-    $stmt->bind_param("sss", $name, $address, $subdomain);
-    
-    if($stmt->execute()) {
-        $success = "Lokasi berhasil ditambahkan!";
-    } else {
-        $error = "Gagal menambahkan lokasi!";
+    try {
+        $name = trim($_POST['name']);
+        $address = trim($_POST['address']);
+        $subdomain = trim($_POST['subdomain']);
+        
+        $stmt = $conn->prepare("INSERT INTO locations (name, address, subdomain) VALUES (?, ?, ?)");
+        
+        if($stmt === false) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        
+        $stmt->bind_param("sss", $name, $address, $subdomain);
+        
+        if($stmt->execute()) {
+            $success = "Lokasi berhasil ditambahkan!";
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $stmt->close();
+    } catch(Exception $e) {
+        $error = "Gagal menambahkan lokasi: " . $e->getMessage();
     }
 }
 
-// Handle Delete
-if(isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    $conn->query("DELETE FROM locations WHERE id = $id");
+// Handle Delete - Gunakan prepared statement
+if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    try {
+        $id = (int)$_GET['delete'];
+        
+        $stmt = $conn->prepare("DELETE FROM locations WHERE id = ?");
+        
+        if($stmt === false) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        
+        $stmt->bind_param("i", $id);
+        
+        if($stmt->execute()) {
+            if($stmt->affected_rows > 0) {
+                $success = "Lokasi berhasil dihapus!";
+            } else {
+                $error = "Lokasi tidak ditemukan!";
+            }
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $stmt->close();
+        
+        // Redirect untuk menghindari resubmit
+        header("Location: locations.php?msg=deleted");
+        exit;
+        
+    } catch(Exception $e) {
+        $error = "Gagal menghapus lokasi: " . $e->getMessage();
+    }
+}
+
+// Handle Edit
+if(isset($_POST['edit_location'])) {
+    try {
+        $id = (int)$_POST['location_id'];
+        $name = trim($_POST['name']);
+        $address = trim($_POST['address']);
+        $subdomain = trim($_POST['subdomain']);
+        
+        $stmt = $conn->prepare("UPDATE locations SET name=?, address=?, subdomain=? WHERE id=?");
+        
+        if($stmt === false) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
+        
+        $stmt->bind_param("sssi", $name, $address, $subdomain, $id);
+        
+        if($stmt->execute()) {
+            $success = "Lokasi berhasil diupdate!";
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $stmt->close();
+    } catch(Exception $e) {
+        $error = "Gagal mengupdate lokasi: " . $e->getMessage();
+    }
+}
+
+// Success message dari redirect
+if(isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
     $success = "Lokasi berhasil dihapus!";
 }
 
-$locations = $conn->query("SELECT * FROM locations ORDER BY name ASC");
+// Get all locations
+try {
+    $locations = $conn->query("SELECT * FROM locations ORDER BY name ASC");
+    if($locations === false) {
+        throw new Exception("Query failed: " . $conn->error);
+    }
+} catch(Exception $e) {
+    $error = "Gagal mengambil data lokasi: " . $e->getMessage();
+    $locations = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -89,13 +175,13 @@ $locations = $conn->query("SELECT * FROM locations ORDER BY name ASC");
 
         <?php if($success): ?>
             <div class="alert alert-success alert-dismissible fade show">
-                <i class="fas fa-check-circle"></i> <?= $success ?>
+                <i class="fas fa-check-circle"></i> <?= htmlspecialchars($success) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
         <?php if($error): ?>
             <div class="alert alert-danger alert-dismissible fade show">
-                <i class="fas fa-exclamation-circle"></i> <?= $error ?>
+                <i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($error) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
@@ -147,26 +233,69 @@ $locations = $conn->query("SELECT * FROM locations ORDER BY name ASC");
                                 <th width="200">Nama Lokasi</th>
                                 <th>Alamat</th>
                                 <th width="300">Subdomain/URL</th>
-                                <th width="100">Aksi</th>
+                                <th width="120">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if($locations->num_rows > 0): ?>
+                            <?php if($locations && $locations->num_rows > 0): ?>
                                 <?php while($location = $locations->fetch_assoc()): ?>
                                 <tr>
-                                    <td><strong><?= $location['name'] ?></strong></td>
-                                    <td><?= $location['address'] ?></td>
+                                    <td><strong><?= htmlspecialchars($location['name']) ?></strong></td>
+                                    <td><?= htmlspecialchars($location['address']) ?></td>
                                     <td>
-                                        <a href="<?= $location['subdomain'] ?>" target="_blank" class="text-success">
-                                            <?= $location['subdomain'] ?> <i class="fas fa-external-link-alt fa-xs"></i>
+                                        <a href="<?= htmlspecialchars($location['subdomain']) ?>" target="_blank" class="text-success">
+                                            <?= htmlspecialchars($location['subdomain']) ?> <i class="fas fa-external-link-alt fa-xs"></i>
                                         </a>
                                     </td>
                                     <td>
+                                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $location['id'] ?>">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
                                         <a href="?delete=<?= $location['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus lokasi ini?')">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </td>
                                 </tr>
+
+                                <!-- Modal Edit -->
+                                <div class="modal fade" id="editModal<?= $location['id'] ?>" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-warning">
+                                                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit Lokasi</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST">
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="location_id" value="<?= $location['id'] ?>">
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Nama Lokasi <span class="text-danger">*</span></label>
+                                                        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($location['name']) ?>" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Subdomain/URL <span class="text-danger">*</span></label>
+                                                        <input type="text" name="subdomain" class="form-control" value="<?= htmlspecialchars($location['subdomain']) ?>" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Alamat <span class="text-danger">*</span></label>
+                                                        <textarea name="address" class="form-control" rows="2" required><?= htmlspecialchars($location['address']) ?></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                        <i class="fas fa-times"></i> Batal
+                                                    </button>
+                                                    <button type="submit" name="edit_location" class="btn btn-warning">
+                                                        <i class="fas fa-save"></i> Update Lokasi
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- End Modal Edit -->
+
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
