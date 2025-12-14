@@ -43,6 +43,49 @@ if(isset($_POST['add_product'])) {
     }
 }
 
+// Handle Edit
+if(isset($_POST['edit_product'])) {
+    $id = $_POST['product_id'];
+    $name = $_POST['name'];
+    $description = $_POST['description'];
+    $price = $_POST['price'];
+    
+    // Cek apakah ada gambar baru
+    if($_FILES["image"]["name"]) {
+        $target_dir = "../uploads/";
+        $image_name = time() . '_' . basename($_FILES["image"]["name"]);
+        $target_file = $target_dir . $image_name;
+        
+        $check = getimagesize($_FILES["image"]["tmp_name"]);
+        if($check !== false) {
+            // Hapus gambar lama
+            $old_product = $conn->query("SELECT image FROM products WHERE id = $id")->fetch_assoc();
+            if($old_product && file_exists("../uploads/" . $old_product['image'])) {
+                unlink("../uploads/" . $old_product['image']);
+            }
+            
+            if(move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
+                $stmt = $conn->prepare("UPDATE products SET name=?, description=?, price=?, image=? WHERE id=?");
+                $stmt->bind_param("ssdsi", $name, $description, $price, $image_name, $id);
+            } else {
+                $error = "Gagal upload gambar baru!";
+            }
+        } else {
+            $error = "File bukan gambar!";
+        }
+    } else {
+        // Update tanpa ganti gambar
+        $stmt = $conn->prepare("UPDATE products SET name=?, description=?, price=? WHERE id=?");
+        $stmt->bind_param("ssdi", $name, $description, $price, $id);
+    }
+    
+    if(!$error && $stmt->execute()) {
+        $success = "Produk berhasil diupdate!";
+    } elseif(!$error) {
+        $error = "Gagal mengupdate produk!";
+    }
+}
+
 // Handle Delete
 if(isset($_GET['delete'])) {
     $id = $_GET['delete'];
@@ -95,6 +138,12 @@ $products = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
             height: 60px;
             object-fit: cover;
             border-radius: 5px;
+        }
+        .modal-product-img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
         }
     </style>
 </head>
@@ -187,7 +236,7 @@ $products = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                                 <th width="150">Harga</th>
                                 <th>Deskripsi</th>
                                 <th width="150">Tanggal</th>
-                                <th width="100">Aksi</th>
+                                <th width="120">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -202,11 +251,68 @@ $products = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
                                     <td><?= substr($product['description'], 0, 60) ?>...</td>
                                     <td><?= date('d M Y', strtotime($product['created_at'])) ?></td>
                                     <td>
+                                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $product['id'] ?>">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
                                         <a href="?delete=<?= $product['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus produk ini?')">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </td>
                                 </tr>
+
+                                <!-- Modal Edit untuk setiap produk -->
+                                <div class="modal fade" id="editModal<?= $product['id'] ?>" tabindex="-1">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-warning">
+                                                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit Produk</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST" enctype="multipart/form-data">
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+                                                    
+                                                    <div class="row">
+                                                        <div class="col-md-6 mb-3">
+                                                            <label class="form-label">Nama Produk <span class="text-danger">*</span></label>
+                                                            <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($product['name']) ?>" required>
+                                                        </div>
+                                                        <div class="col-md-6 mb-3">
+                                                            <label class="form-label">Harga <span class="text-danger">*</span></label>
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">Rp</span>
+                                                                <input type="number" name="price" class="form-control" value="<?= $product['price'] ?>" required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-12 mb-3">
+                                                            <label class="form-label">Deskripsi <span class="text-danger">*</span></label>
+                                                            <textarea name="description" class="form-control" rows="3" required><?= htmlspecialchars($product['description']) ?></textarea>
+                                                        </div>
+                                                        <div class="col-md-12 mb-3">
+                                                            <label class="form-label">Gambar Saat Ini:</label><br>
+                                                            <img src="../uploads/<?= $product['image'] ?>" class="modal-product-img mb-2" alt="Current">
+                                                        </div>
+                                                        <div class="col-md-12 mb-3">
+                                                            <label class="form-label">Ganti Gambar (Opsional)</label>
+                                                            <input type="file" name="image" class="form-control" accept="image/*">
+                                                            <small class="text-muted">Kosongkan jika tidak ingin mengganti gambar</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                        <i class="fas fa-times"></i> Batal
+                                                    </button>
+                                                    <button type="submit" name="edit_product" class="btn btn-warning">
+                                                        <i class="fas fa-save"></i> Update Produk
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- End Modal Edit -->
+
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
